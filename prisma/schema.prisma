@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  walletAddress String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  nft             Nft[]
+  transactions    Transaction[]
+  MyriaMysteryBox MyriaMysteryBox[]
+
+  @@index([walletAddress])
+  @@map("user")
+}
+
+model NftMetadata {
+  id                Int      @id @default(autoincrement())
+  name              String
+  externalUrl       String?
+  unlocked          Boolean  @default(false)
+  baseNftMetadataId Int
+  eventType         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  nft             Nft?
+  baseNftMetadata BaseNftMetadata   @relation(fields: [baseNftMetadataId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  MyriaMysteryBox MyriaMysteryBox[]
+
+  @@index([unlocked])
+  @@index([baseNftMetadataId])
+  @@index([eventType])
+  @@map("nft_metadata")
+}
+
+model BaseNftMetadata {
+  id           Int      @id @default(autoincrement())
+  name         String?
+  image        String?
+  description  String?
+  animationUrl String?
+  youtubeUrl   String?
+  attributes   Json?
+  collectionId Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  nftMetadata NftMetadata[]
+  collection  NftCollection @relation(fields: [collectionId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+
+  @@index([attributes(ops: JsonbPathOps)], type: Gin)
+  @@index(name)
+  @@index([collectionId])
+  @@map("base_nft_metadata")
+}
+
+model NftCollection {
+  id              Int      @id @default(autoincrement())
+  name            String
+  contractAddress String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  nfts            Nft[]
+  baseNftMetadata BaseNftMetadata[]
+  MyriaMysteryBox MyriaMysteryBox[]
+
+  @@index([name])
+  @@index([contractAddress])
+  @@map("nft_collection")
+}
+
+model Nft {
+  id              Int      @id @default(autoincrement())
+  tokenId         Int?
+  metadataId      Int      @unique
+  ownerId         Int
+  nftCollectionId Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  metadata         NftMetadata        @relation(fields: [metadataId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  owner            User               @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftCollection    NftCollection      @relation(fields: [nftCollectionId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftsTransactions NftsTransactions[]
+  MyriaMysteryBox  MyriaMysteryBox[]
+
+  @@unique([tokenId, nftCollectionId])
+  @@index([tokenId])
+  @@index([metadataId])
+  @@index([ownerId])
+  @@index([nftCollectionId])
+  @@map("nft")
+}
+
+model Transaction {
+  id              Int      @id @default(autoincrement())
+  transactionHash String   @unique
+  type            String?
+  createdAt       DateTime @default(dbgenerated("('now'::text)::timestamp(6) with time zone")) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @default(dbgenerated("('now'::text)::timestamp(6) with time zone")) @map("updated") @db.Timestamp(6)
+  makerId         Int
+
+  maker            User               @relation(fields: [makerId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftsTransactions NftsTransactions[]
+
+  @@index([makerId])
+  @@map("transaction")
+}
+
+model NftsTransactions {
+  nftId         Int
+  transactionId Int
+
+  nft         Nft         @relation(fields: [nftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([nftId, transactionId])
+  @@map("nfts_transactions")
+}
+
+model MyriaMysteryBox {
+  id              Int  @id @default(autoincrement())
+  myriaId         Int?
+  tokenId         Int?
+  nftCollectionId Int
+  receiverId      Int?
+  nftMetadataId   Int
+  mintedNftId     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nftMetadata NftMetadata   @relation(fields: [nftMetadataId], references: [id])
+  collection  NftCollection @relation(fields: [nftCollectionId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  receiver    User?         @relation(fields: [receiverId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  mintedNft   Nft?          @relation(fields: [mintedNftId], references: [id])
+
+  @@unique([nftCollectionId, tokenId])
+  @@index([receiverId])
+  @@index([nftCollectionId])
+  @@index([tokenId])
+  @@index([mintedNftId])
+  @@map("myria_mystery_box")
+}
